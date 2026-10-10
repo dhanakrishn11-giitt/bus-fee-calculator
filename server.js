@@ -22,7 +22,7 @@ function load() {
   if (!fs.existsSync(DB_FILE)) return { students: [], trips: [], payments: [] };
   return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
 }
-function save(db) { fs.mkdirSync(DB_FILE),{recursive: true});
+function save(db) { fs.mkdirSync(path.dirname(DB_FILE), {recursive: true}); 
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
 }
 function hash(pw, salt) { return crypto.scryptSync(pw, salt, 32).toString('hex'); }
