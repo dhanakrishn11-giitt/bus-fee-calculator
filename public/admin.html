@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Office Dashboard</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header><h1>🏢 Office Dashboard</h1><button class="sec" onclick="logout()">Logout</button></header>
+<main><div class="card">
+  <div class="row"><div><label>Month</label><input type="month" id="month" onchange="load()"></div>
+    <div><label>Search student</label><input id="q" oninput="render()" placeholder="name / reg no"></div></div><br>
+  <div class="wrap"><table>
+    <thead><tr><th>Student</th><th>Total uses</th><th>Uses (month)</th><th>Month amt</th><th>Pending (earlier)</th><th>Payable</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="rows"></tbody></table></div>
+  <div id="msg" class="msg"></div>
+</div></main>
+<div id="modal" class="card hide" style="position:fixed;top:20%;left:50%;transform:translateX(-50%);width:90%;max-width:360px;z-index:9;box-shadow:0 8px 30px rgba(0,0,0,.35)">
+  <h2>Mark as paid</h2>
+  <p class="sub">All trips up to this date will be marked paid.</p>
+  <label>Paid up to (date)</label><input type="date" id="mDate">
+  <br><br>
+  <button class="ok" onclick="confirmPay()">Confirm</button>
+  <button class="sec" onclick="closeModal()">Cancel</button>
+</div>
+<script src="app.js"></script>
+<script>
+function $(id){return document.getElementById(id)}
+if(!localStorage.getItem('token')) location.href='index.html';
+$('month').value=thisMonth();
+let data=[];
+async function load(){ data=await api('/api/admin/students?month='+$('month').value); render(); }
+function render(){
+  const q=$('q').value.toLowerCase();
+  $('rows').innerHTML=data.filter(s=>(s.name+s.regNo).toLowerCase().includes(q)).map(s=>`
+    <tr><td>${s.name}<div class="sub">${s.semester} • ${s.department} • ${s.regNo}</div></td>
+    <td>${s.totalUses}</td><td>${s.monthCount}</td><td>${rupee(s.monthAmount)}</td>
+    <td>${rupee(s.prevAmount)}</td><td><b>${rupee(s.due)}</b></td><td>${badge(s.status)}</td>
+    <td><button class="ok" onclick="pay('${s.id}')">Mark Paid</button>
+        <button class="warn" onclick="unpay('${s.id}')">Mark Pending</button>
+        <button class="sec" onclick="downloadPdf('studentId=${s.id}&month='+$('month').value)">PDF</button></td></tr>`).join('')
+    || '<tr><td colspan="8" class="sub">No students found</td></tr>';
+}
+function monthEnd(m){const[y,mo]=m.split('-').map(Number);return `${m}-${String(new Date(y,mo,0).getDate()).padStart(2,'0')}`}
+let payId = null;
+function pay(id){
+  payId = id;
+  $('mDate').value = monthEnd($('month').value);
+  $('modal').classList.remove('hide');
+}
+function closeModal(){ $('modal').classList.add('hide'); }
+async function confirmPay(){
+  try{
+    const r = await api('/api/admin/pay',{method:'POST',body:JSON.stringify({studentId:payId,upto:$('mDate').value})});
+    closeModal();
+    $('msg').className='msg good';
+    $('msg').textContent=`Recorded ${r.count} trips, ${rupee(r.amount)} received.`;
+    load();
+  }catch(e){ $('msg').className='msg err'; $('msg').textContent=e.message; closeModal(); }
+}
+async function unpay(id){
+  await api('/api/admin/unpay',{method:'POST',body:JSON.stringify({studentId:id,month:$('month').value})});
+  $('msg').className='msg good'; $('msg').textContent='Marked as pending.';
+  load();
+}
+load();
+</script></body></html>

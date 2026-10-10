@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Campus EV Fee Calculator</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header><h1>🚌 Campus EV Fee Calculator</h1></header>
+<main><div class="card login">
+  <div class="tabs">
+    <button id="tabS" class="on" onclick="setRole('student')">Student Login</button>
+    <button id="tabA" onclick="setRole('admin')">Admin Login (Office)</button>
+  </div>
+
+  <div id="loginBox">
+    <label id="uLabel">Register Number</label><input id="user">
+    <label>Password</label><input id="pass" type="password">
+    <br><br><button style="width:100%" onclick="login()">Login</button>
+    <p id="regLink" class="msg">New student? <a href="#" onclick="showReg(true)">Create profile</a></p>
+  </div>
+
+  <div id="regBox" class="hide">
+    <h2>Create Student Profile</h2>
+    <label>Full Name</label><input id="rName">
+    <label>Register Number</label><input id="rReg">
+    <label>Department</label><input id="rDept" placeholder="e.g. Computer Science">
+    <label>Semester</label><select id="rSem"></select>
+    <label>Password</label><input id="rPass" type="password">
+    <br><br><button style="width:100%" onclick="register()">Create Profile</button>
+    <p class="msg"><a href="#" onclick="showReg(false)">← Back to login</a></p>
+  </div>
+  <div id="msg" class="msg err"></div>
+</div></main>
+<script src="app.js"></script>
+<script>
+let role = 'student';
+api('/api/config').then(c => fillSelect(document.getElementById('rSem'), c.sems));
+function $(id){return document.getElementById(id)}
+function setRole(r){
+  role = r;
+  $('tabS').classList.toggle('on', r==='student'); $('tabA').classList.toggle('on', r==='admin');
+  $('uLabel').textContent = r==='student' ? 'Register Number' : 'Admin Username';
+  $('regLink').classList.toggle('hide', r==='admin'); showReg(false);
+}
+function showReg(on){ $('regBox').classList.toggle('hide',!on); $('loginBox').classList.toggle('hide',on); $('msg').textContent=''; }
+async function login(){
+  try{
+    const d = await api('/api/login',{method:'POST',body:JSON.stringify({role,username:$('user').value,password:$('pass').value})});
+    localStorage.setItem('token',d.token);
+    location.href = d.role==='admin' ? 'admin.html' : 'student.html';
+  }catch(e){ $('msg').className='msg err'; $('msg').textContent=e.message; }
+}
+async function register(){
+  try{
+    await api('/api/register',{method:'POST',body:JSON.stringify({name:$('rName').value,regNo:$('rReg').value,
+      department:$('rDept').value,semester:$('rSem').value,password:$('rPass').value})});
+    showReg(false); $('msg').className='msg good'; $('msg').textContent='Profile created! Please login.';
+  }catch(e){ $('msg').className='msg err'; $('msg').textContent=e.message; }
+}
+</script></body></html>

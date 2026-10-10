@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My EV Profile</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header><h1>🚌 My EV Profile</h1><button class="sec" onclick="logout()">Logout</button></header>
+<main>
+  <div class="card"><h2 id="who">Loading...</h2><div id="info" class="sub"></div></div>
+
+  <div class="card"><h2>Record an EV Trip</h2>
+    <div class="row">
+      <div><label>Date</label><input type="date" id="tDate"></div>
+      <div><label>From</label><select id="tFrom"></select></div>
+      <div><label>To</label><select id="tTo"></select></div>
+      <div><button onclick="addTrip()">Add Trip</button></div>
+    </div><div id="tMsg" class="msg"></div>
+  </div>
+
+  <div class="card"><h2>Monthly Bill</h2>
+    <div class="row"><div><label>Month</label><input type="month" id="month" onchange="loadSummary()"></div>
+      <div><button class="sec" onclick="receipt('month='+$('month').value)">⬇ Download PDF Receipt</button></div></div><br>
+    <div class="grid">
+      <div class="stat"><b id="sTotal">0</b><span>Total EV uses so far</span></div>
+      <div class="stat"><b id="sMonth">0</b><span>Uses this month</span></div>
+      <div class="stat"><b id="sAmt">₹0</b><span>This month's amount</span></div>
+      <div class="stat"><b id="sPrev">₹0</b><span>Pending from earlier</span></div>
+      <div class="stat"><b id="sDue">₹0</b><span>Total payable</span></div>
+      <div class="stat"><b id="sStatus">-</b><span>Payment status</span></div>
+    </div><br>
+    <div class="wrap"><table><thead><tr><th>#</th><th>Date</th><th>From</th><th>To</th><th>Status</th></tr></thead>
+      <tbody id="rows"></tbody></table></div>
+  </div>
+
+  <div class="card"><h2>Pay on a Specific Date</h2>
+    <p class="sub">See how much you owe from your last payment date up to the date you plan to pay.</p>
+    <div class="row"><div><label>Payment date</label><input type="date" id="upto"></div>
+      <div><button onclick="calcDue()">Calculate</button></div></div>
+    <div id="dueOut" class="msg"></div>
+  </div>
+</main>
+<script src="app.js"></script>
+<script>
+function $(id){return document.getElementById(id)}
+if(!localStorage.getItem('token')) location.href='index.html';
+$('tDate').value=today(); $('upto').value=today(); $('month').value=thisMonth();
+(async()=>{
+  const [me,cfg]=await Promise.all([api('/api/me'),api('/api/config')]);
+  $('who').textContent=me.name; $('info').textContent=`${me.regNo} • ${me.department} • ${me.semester}`;
+  fillSelect($('tFrom'),cfg.places); fillSelect($('tTo'),cfg.places); $('tTo').selectedIndex=1;
+  loadSummary();
+})();
+async function addTrip(){
+  try{
+    await api('/api/trips',{method:'POST',body:JSON.stringify({date:$('tDate').value,from:$('tFrom').value,to:$('tTo').value})});
+    $('tMsg').className='msg good'; $('tMsg').textContent='Trip recorded ✔'; loadSummary();
+  }catch(e){ $('tMsg').className='msg err'; $('tMsg').textContent=e.message; }
+}
+async function loadSummary(){
+  const s=await api('/api/summary?month='+$('month').value);
+  $('sTotal').textContent=s.totalUses; $('sMonth').textContent=s.monthCount;
+  $('sAmt').textContent=rupee(s.monthAmount); $('sPrev').textContent=rupee(s.prevAmount);
+  $('sDue').textContent=rupee(s.due); $('sStatus').innerHTML=badge(s.status);
+  $('rows').innerHTML=s.trips.map((t,i)=>`<tr><td>${i+1}</td><td>${t.date}</td><td>${t.from}</td><td>${t.to}</td><td>${t.paid?'Paid':'Pending'}</td></tr>`).join('')
+    || '<tr><td colspan="5" class="sub">No trips this month</td></tr>';
+}
+async function calcDue(){
+  try{
+    const d=await api('/api/due?upto='+$('upto').value);
+    $('dueOut').className='msg';
+    $('dueOut').innerHTML=`Last paid up to: <b>${d.lastPaid||'never'}</b><br>
+      Period: <b>${d.from||'-'}</b> to <b>${d.to}</b><br>
+      Uses: <b>${d.count}</b> × ₹15 = <b>${rupee(d.amount)}</b><br><br>
+      <button class="sec" onclick="receipt('upto='+$('upto').value)">⬇ Download PDF</button>`;
+  }catch(e){ $('dueOut').className='msg err'; $('dueOut').textContent=e.message; }
+}
+const receipt=q=>downloadPdf(q);
+</script></body></html>
